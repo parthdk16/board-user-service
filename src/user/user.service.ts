@@ -1,212 +1,175 @@
+// user.service.ts
 import {
   Injectable,
-  NotFoundException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
-// import { UpdateUserDto } from './dto/update-user.dto';
-import * as bcrypt from 'bcrypt';
-
-// Define a type for user without password
-export type UserWithoutPassword = Omit<User, 'password'>;
+import { UserRole } from '../common/enums/role.enum';
 
 @Injectable()
 export class UserService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
-  async create(createUserDto: CreateUserDto): Promise<UserWithoutPassword> {
-    // Check if user already exists
-    const existingUser = await this.userModel
-      .findOne({
+  async create(createUserDto: CreateUserDto): Promise<any> {
+    try {
+      // Check if user already exists
+      const existingUser = await this.userModel.findOne({
         email: createUserDto.email,
-      })
-      .exec();
+      });
 
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
+      if (existingUser) {
+        throw new ConflictException('User with this email already exists');
+      }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(
-      createUserDto.password,
-      saltRounds,
-    );
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(
+        createUserDto.password,
+        saltRounds,
+      );
 
-    // Create user with hashed password
-    const userData = {
-      ...createUserDto,
-      password: hashedPassword,
-    };
+      // Generate student ID if not provided
+      let studentId = createUserDto.studentId;
+      if (!studentId && createUserDto.role === UserRole.STUDENT) {
+        studentId = await this.generateStudentId();
+      }
 
-    const createdUser = new this.userModel(userData);
-    const savedUser = await createdUser.save();
+      // Create user
+      const user = new this.userModel({
+        ...createUserDto,
+        password: hashedPassword,
+        studentId,
+      });
 
-    // Return user without password using toObject() and destructuring
-    const { password, ...userWithoutPassword } = savedUser.toObject();
-    return userWithoutPassword as UserWithoutPassword;
-  }
+      const savedUser = await user.save();
 
-  async findAll(): Promise<UserWithoutPassword[]> {
-    const users = await this.userModel
-      .find()
-      .select('-password') // Exclude password field
-      .lean() // Return plain objects instead of Mongoose documents
-      .exec();
-
-    return users as UserWithoutPassword[];
-  }
-
-  async findById(id: string): Promise<UserWithoutPassword> {
-    const user = await this.userModel
-      .findById(id)
-      .select('-password') // Exclude password field
-      .lean() // Return plain object
-      .exec();
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user as UserWithoutPassword;
-  }
-
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).exec();
-  }
-
-  // async update(
-  //   id: string,
-  //   updateUserDto: UpdateUserDto,
-  // ): Promise<UserWithoutPassword> {
-  //   // If password is being updated, hash it
-  //   if (updateUserDto.password) {
-  //     const saltRounds = 10;
-  //     updateUserDto.password = await bcrypt.hash(
-  //       updateUserDto.password,
-  //       saltRounds,
-  //     );
-  //   }
-
-  //   const updatedUser = await this.userModel
-  //     .findByIdAndUpdate(id, updateUserDto, { new: true })
-  //     .select('-password') // Exclude password field
-  //     .lean() // Return plain object
-  //     .exec();
-
-  //   if (!updatedUser) {
-  //     throw new NotFoundException('User not found');
-  //   }
-
-  //   return updatedUser as UserWithoutPassword;
-  // }
-
-  async remove(id: string): Promise<void> {
-    const result = await this.userModel.findByIdAndDelete(id).exec();
-
-    if (!result) {
-      throw new NotFoundException('User not found');
+      // Return user without password
+      const { password, ...userWithoutPassword } = savedUser.toObject();
+      return userWithoutPassword;
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      throw new Error(`Failed to create user: ${error.message}`);
     }
   }
 
-  async validateUser(
-    email: string,
-    password: string,
-  ): Promise<UserWithoutPassword | null> {
-    const user = await this.userModel.findOne({ email }).exec();
+  async validateUser(email: string, password: string): Promise<any> {
+    try {
+      const user = await this.userModel.findOne({ email }).select('+password');
 
-    if (!user) {
-      return null;
+      if (!user) {
+        return null;
+      }
+
+      // Compare password with hashed password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      if (!isPasswordValid) {
+        return null;
+      }
+
+      // Update last login
+      await this.userModel.findByIdAndUpdate(user._id, {
+        lastLogin: new Date(),
+      });
+
+      // Return user without password
+      const { password: userPassword, ...userWithoutPassword } = user.toObject();
+      return userWithoutPassword;
+    } catch (error) {
+      throw new Error(`Failed to validate user: ${error.message}`);
     }
+  }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      return null;
+  async findById(id: string): Promise<any> {
+    try {
+      const user = await this.userModel.findById(id).select('-password');
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return user;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to find user: ${error.message}`);
     }
-
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user.toObject();
-    return userWithoutPassword as UserWithoutPassword;
   }
 
-  async updateLastLogin(id: string): Promise<void> {
-    await this.userModel
-      .findByIdAndUpdate(id, { lastLogin: new Date() })
-      .exec();
-  }
-
-  async deactivateUser(id: string): Promise<UserWithoutPassword> {
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, { isActive: false }, { new: true })
-      .select('-password')
-      .lean()
-      .exec();
-
-    if (!updatedUser) {
-      throw new NotFoundException('User not found');
+  async findByStudentId(studentId: string): Promise<any> {
+    try {
+      const user = await this.userModel
+        .findOne({ studentId })
+        .select('-password');
+      console.log('User: ', user, ' for student: ', studentId);
+      if (!user) {
+        throw new NotFoundException('Student not found');
+      }
+      return user;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to find student: ${error.message}`);
     }
-
-    return updatedUser as UserWithoutPassword;
   }
 
-  async activateUser(id: string): Promise<UserWithoutPassword> {
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, { isActive: true }, { new: true })
-      .select('-password')
-      .lean()
-      .exec();
-
-    if (!updatedUser) {
-      throw new NotFoundException('User not found');
+  async getAllStudents(): Promise<any[]> {
+    try {
+      const students = await this.userModel
+        .find({ role: UserRole.STUDENT })
+        .select('-password');
+      return students;
+    } catch (error) {
+      throw new Error(`Failed to get students: ${error.message}`);
     }
-
-    return updatedUser as UserWithoutPassword;
   }
 
-  // Additional methods that your controller is calling
-  async createUser(createUserDto: CreateUserDto): Promise<UserWithoutPassword> {
-    return this.create(createUserDto);
-  }
-
-  async findByStudentId(studentId: string): Promise<UserWithoutPassword> {
-    const user = await this.userModel
-      .findOne({ studentId })
-      .select('-password')
-      .lean()
-      .exec();
-
-    if (!user) {
-      throw new NotFoundException('Student not found');
+  async getUserRole(userId: string): Promise<string> {
+    try {
+      const user = await this.userModel.findById(userId).select('role');
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return user.role;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to get user role: ${error.message}`);
     }
-
-    return user as UserWithoutPassword;
   }
 
-  async getAllStudents(): Promise<UserWithoutPassword[]> {
-    const students = await this.userModel
-      .find({ role: 'STUDENT' }) // Assuming you have a STUDENT role
-      .select('-password')
-      .lean()
-      .exec();
+  private async generateStudentId(): Promise<string> {
+    try {
+      const currentYear = new Date().getFullYear();
+      const prefix = `STD${currentYear}`;
 
-    return students as UserWithoutPassword[];
-  }
+      // Find the latest student ID for current year
+      const latestStudent = await this.userModel
+        .findOne({
+          studentId: { $regex: `^${prefix}` },
+        })
+        .sort({ studentId: -1 });
 
-  async getUserRole(userId: string): Promise<{ role: string }> {
-    const user = await this.userModel
-      .findById(userId)
-      .select('role')
-      .lean()
-      .exec();
+      let nextNumber = 1;
+      if (latestStudent && latestStudent.studentId) {
+        const lastNumber = parseInt(
+          latestStudent.studentId.replace(prefix, ''),
+        );
+        nextNumber = lastNumber + 1;
+      }
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+      // Pad with zeros (e.g., STD2024001)
+      return `${prefix}${nextNumber.toString().padStart(3, '0')}`;
+    } catch (error) {
+      throw new Error(`Failed to generate student ID: ${error.message}`);
     }
-
-    return { role: user.role };
   }
 }

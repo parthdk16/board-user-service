@@ -12,6 +12,8 @@ export class User {
   @Prop({
     lowercase: true,
     trim: true,
+    required: true,
+    unique: true,
   })
   email: string;
 
@@ -28,7 +30,7 @@ export class User {
   })
   role: UserRole;
 
-  @Prop()
+  @Prop({ unique: true, sparse: true })
   studentId?: string;
 
   @Prop({ default: true })

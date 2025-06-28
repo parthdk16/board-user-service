@@ -10,6 +10,7 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,11 +26,15 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
+import { AuthService } from 'src/auth/auth.service';
 
 @ApiTags('Users')
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -95,7 +100,7 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'User login',
-    description: 'Authenticate user and return user details',
+    description: 'Authenticate user and return JWT token with user details',
   })
   @ApiResponse({
     status: 200,
@@ -112,6 +117,7 @@ export class UserController {
             role: 'STUDENT',
             studentId: 'STD2024001',
           },
+          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         },
       },
     },
@@ -133,11 +139,19 @@ export class UserController {
       }
       const { email, password } = loginUserDto;
       const user = await this.userService.validateUser(email, password);
+      if (!user) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      // Generate JWT token
+      const token = this.authService.generateToken(user);
+
       return {
         success: true,
         message: 'Login successful',
         data: {
           user,
+          token,
         },
       };
     } catch (error) {

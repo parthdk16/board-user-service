@@ -51,6 +51,6 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Add indexes for better performance
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ studentId: 1 });
+// UserSchema.index({ email: 1 }, { unique: true });
+// UserSchema.index({ studentId: 1 });
 UserSchema.index({ role: 1 });

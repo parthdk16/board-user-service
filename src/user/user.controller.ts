@@ -27,6 +27,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
 import { AuthService } from 'src/auth/auth.service';
+import { HttpService } from '@nestjs/axios';
+import { lastValueFrom } from 'rxjs';
 
 @ApiTags('Users')
 @Controller('users')
@@ -34,6 +36,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
+    private readonly httpService: HttpService,
   ) {}
 
   @Post('register')
@@ -86,6 +89,19 @@ export class UserController {
   async register(@Body() createUserDto: CreateUserDto) {
     try {
       const user = await this.userService.create(createUserDto);
+
+      // Send data to different routes based on role
+      if (
+        user.role.toLowerCase() === 'admin' ||
+        user.role.toLowerCase() === 'manager'
+      ) {
+        await lastValueFrom(
+          this.httpService.post('http://localhost:3002/sync/student', user),
+        );
+      } else {
+        return;
+      }
+
       return {
         success: true,
         message: 'User registered successfully',
@@ -95,6 +111,18 @@ export class UserController {
       throw error;
     }
   }
+  // async register(@Body() createUserDto: CreateUserDto) {
+  //   try {
+  //     const user = await this.userService.create(createUserDto);
+  //     return {
+  //       success: true,
+  //       message: 'User registered successfully',
+  //       data: user,
+  //     };
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -277,7 +305,7 @@ export class UserController {
   })
   async getByStudentId(@Param('studentId') studentId: string) {
     try {
-      const user = await this.userService.findByStudentId(studentId);
+      const user = await this.userService.findById(studentId);
       return {
         success: true,
         data: user,
@@ -371,6 +399,41 @@ export class UserController {
           user: null,
         },
       };
+    }
+  }
+
+  @Get('internal/student/:studentId')
+  @ApiOperation({
+    summary: 'Get user by Student ID (Moderators only)',
+    description:
+      'Get student details by Student ID. Only accessible by Moderators.',
+  })
+  @ApiParam({
+    name: 'studentId',
+    description: 'Student ID',
+    example: 'STD2024001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Student found',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Only Moderators can access',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Student not found',
+  })
+  async getByStudentIdS2S(@Param('studentId') studentId: string) {
+    try {
+      const user = await this.userService.findById(studentId);
+      return {
+        success: true,
+        data: user,
+      };
+    } catch (error) {
+      throw error;
     }
   }
 }

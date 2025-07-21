@@ -5,7 +5,7 @@ import { MongoDBLoggerService } from '../service/mongodb-logger.service';
 
 @ApiTags('Log Management')
 @Controller('logs')
-// @UseGuards(AdminGuard) // Uncomment to restrict access to admins only
+// @UseGuards(AdminGuard)
 export class LogManagementController {
   constructor(private readonly mongoLogger: MongoDBLoggerService) {}
 

@@ -11,6 +11,7 @@ import {
   HttpCode,
   BadRequestException,
   UnauthorizedException,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -29,6 +30,7 @@ import { UserRole } from '../common/enums/role.enum';
 import { AuthService } from 'src/auth/auth.service';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
+import { S2SAuthGuard } from 'src/auth/s2s-auth.guard';
 
 @ApiTags('Users')
 @Controller('users')
@@ -93,7 +95,7 @@ export class UserController {
       // Send data to different routes based on role
       if (
         user.role.toLowerCase() === 'admin' ||
-        user.role.toLowerCase() === 'manager'
+        user.role.toLowerCase() === 'moderator'
       ) {
         await lastValueFrom(
           this.httpService.post('http://localhost:3002/sync/student', user),
@@ -305,7 +307,7 @@ export class UserController {
   })
   async getByStudentId(@Param('studentId') studentId: string) {
     try {
-      const user = await this.userService.findById(studentId);
+      const user = await this.userService.findByStudentId(studentId);
       return {
         success: true,
         data: user,
@@ -351,6 +353,81 @@ export class UserController {
       return {
         success: true,
         data: students,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @Delete('student/:studentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.MODERATOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete user by Student ID (Moderators only)',
+    description: 'Delete a student by their Student ID. Only accessible by Moderators.',
+  })
+  @ApiParam({
+    name: 'studentId',
+    description: 'Student ID',
+    example: 'STD2024001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Student deleted successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Only Moderators can access',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Student not found',
+  })
+  async deleteByStudentId(@Param('studentId') studentId: string) {
+    try {
+      const result = await this.userService.deleteByStudentId(studentId);
+      return {
+        success: true,
+        message: `Student with ID ${studentId} deleted successfully.`,
+        data: result,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @Delete('user/:userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.MODERATOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete user by user ID (Moderators only)',
+    description: 'Delete a user by their user ID. Only accessible by Moderators.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'User ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User deleted successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Only Moderators can access',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async deleteByUserId(@Param('userId') userId: string) {
+    try {
+      const result = await this.userService.deleteByUserId(userId);
+      return {
+        success: true,
+        message: `User with ID ${userId} deleted successfully.`,
+        data: result,
       };
     } catch (error) {
       throw error;
@@ -403,6 +480,7 @@ export class UserController {
   }
 
   @Get('internal/student/:studentId')
+  @UseGuards(JwtAuthGuard, S2SAuthGuard)
   @ApiOperation({
     summary: 'Get user by Student ID (Moderators only)',
     description:
@@ -427,7 +505,8 @@ export class UserController {
   })
   async getByStudentIdS2S(@Param('studentId') studentId: string) {
     try {
-      const user = await this.userService.findById(studentId);
+      console.log('Student ID: ', studentId);
+      const user = await this.userService.findByStudentId(studentId);
       return {
         success: true,
         data: user,

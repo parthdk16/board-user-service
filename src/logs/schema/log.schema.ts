@@ -16,7 +16,7 @@ export class Log {
   context?: string;
 
   @Prop()
-  method?: string; // HTTP method (GET, POST, etc.)
+  method?: string; // HTTP method
 
   @Prop()
   url?: string; // Request URL
@@ -37,7 +37,7 @@ export class Log {
   userId?: string; // User ID if authenticated
 
   @Prop({ type: Object })
-  requestBody?: any; // Request body (be careful with sensitive data)
+  requestBody?: any; // Request body
 
   @Prop({ type: Object })
   queryParams?: any; // Query parameters
@@ -46,7 +46,7 @@ export class Log {
   routeParams?: any; // Route parameters
 
   @Prop({ type: Object })
-  headers?: any; // Request headers (filtered)
+  headers?: any; // Request headers
 
   @Prop()
   error?: string; // Error message

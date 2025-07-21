@@ -50,12 +50,10 @@ export class MongoDBLoggerService extends ConsoleLogger {
 
       await logEntry.save();
     } catch (err) {
-      // Don't let logging errors crash the application
       console.error('Failed to save log to MongoDB:', err);
     }
   }
 
-  // Enhanced logging methods
   logWithContext(message: string, context?: string, logContext?: LogContext) {
     super.log(message, context);
     this.saveToMongoDB('log', message, context, logContext);

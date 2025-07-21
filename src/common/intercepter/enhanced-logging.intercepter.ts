@@ -27,7 +27,7 @@ export class EnhancedLoggingInterceptor implements NestInterceptor {
       url: request.url,
       ipAddress: this.getClientIp(request),
       userAgent: request.headers['user-agent'],
-      userId: request.user?.id || request.userId, // Assuming user is attached to request
+      userId: request.user?.id || request.userId,
       sessionId: request.sessionID,
       correlationId,
       queryParams: request.query,

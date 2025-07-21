@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -16,7 +16,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  // validate(payload: JwtPayload) {
+  //   return { userId: payload.sub, email: payload.email, role: payload.role };
+  // }
+
   validate(payload: JwtPayload) {
-    return { userId: payload.sub, email: payload.email, role: payload.role };
+    if (payload.sub && payload.email) {
+      // User token
+      return { userId: payload.sub, email: payload.email, role: payload.role };
+    } else if (payload.service) {
+      // Service token
+      return { service: payload.service, role: payload.role };
+    } else {
+      throw new UnauthorizedException('Invalid token payload');
+    }
   }
 }

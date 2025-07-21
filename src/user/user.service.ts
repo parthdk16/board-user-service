@@ -107,7 +107,7 @@ export class UserService {
       const user = await this.userModel
         .findOne({ studentId })
         .select('-password');
-      console.log('User: ', user, ' for student: ', studentId);
+      // console.log('User: ', user, ' for student: ', studentId);
       if (!user) {
         throw new NotFoundException('Student not found');
       }
@@ -128,6 +128,38 @@ export class UserService {
       return students;
     } catch (error) {
       throw new Error(`Failed to get students: ${error.message}`);
+    }
+  }
+
+  async deleteByStudentId(studentId: string): Promise<any> {
+    try {
+      const user = await this.userModel
+        .deleteOne({ studentId })
+      if (!user) {
+        throw new NotFoundException('Student not found');
+      }
+      return user;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to delete student: ${error.message}`);
+    }
+  }
+
+  async deleteByUserId(userId: string): Promise<any> {
+    try {
+      const user = await this.userModel
+        .findByIdAndDelete(userId)
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return user;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to delete user: ${error.message}`);
     }
   }
 

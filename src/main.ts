@@ -27,15 +27,15 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  SwaggerModule.setup('api-docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+      customSiteTitle: 'User Service API Documentation',
+    });
 
   await app.listen(process.env.PORT ?? 3001);
-
-  // console.log(`User service is running at: ${process.env.USER_SERVICE_URL}`);
-  // console.log(
-  //   `API Documentation available at: ${process.env.USER_SERVICE_URL}/api-docs`,
-  // );
-
+  
   // Log startup with context
   mongoLogger.logWithContext(
     `🚀 Application is running on: http://localhost:${process.env.PORT}`,
